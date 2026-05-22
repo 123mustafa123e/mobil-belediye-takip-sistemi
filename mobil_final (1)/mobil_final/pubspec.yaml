@@ -46,7 +46,8 @@ dependencies:
 
   # HTTP istekleri (AI backend)
   http: ^1.2.2
-
+  
+  http_parser: ^4.0.0
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -99,3 +100,4 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+

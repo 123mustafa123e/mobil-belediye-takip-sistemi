@@ -1,22 +1,19 @@
 import 'dart:convert';
-import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 import '../../../core/constants/app_colors.dart';
+import 'ai_result_screen.dart';
 
-// Backend URL - Platforma göre otomatik belirlenir
 String get _backendUrl {
-  if (kIsWeb) {
-    return 'http://localhost:8000';
-  }
-  // Android Emülatör için 10.0.2.2, gerçek cihaz için kendi bilgisayarınızın IP'si (örn: 192.168.1.156)
+  if (kIsWeb) return 'http://localhost:8000';
   return 'http://10.0.2.2:8000';
 }
 
-/// AI analiz sonuç modeli
 class _AnalizSonucu {
   final String arizaTuru;
   final String aciliyet;
@@ -41,9 +38,9 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
   final _questionController = TextEditingController();
   final _imagePicker = ImagePicker();
 
-  File? _selectedImage;
+  XFile? _selectedImage;
+  Uint8List? _selectedImageBytes;
   bool _isLoading = false;
-  _AnalizSonucu? _result;
   String? _errorMessage;
 
   @override
@@ -52,7 +49,6 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
     super.dispose();
   }
 
-  /// Galeriden veya kameradan resim seç
   Future<void> _pickImage(ImageSource source) async {
     try {
       final XFile? picked = await _imagePicker.pickImage(
@@ -61,9 +57,10 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
         maxWidth: 1280,
       );
       if (picked != null) {
+        final bytes = await picked.readAsBytes();
         setState(() {
-          _selectedImage = File(picked.path);
-          _result = null;
+          _selectedImage = picked;
+          _selectedImageBytes = bytes;
           _errorMessage = null;
         });
       }
@@ -72,7 +69,6 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
     }
   }
 
-  /// Resim seçme modalı göster
   void _showImageSourceDialog() {
     showModalBottomSheet(
       context: context,
@@ -116,7 +112,6 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
     );
   }
 
-  /// Backend API'ye gönder ve analiz al
   Future<void> _analyzeWithAI() async {
     if (_selectedImage == null && _questionController.text.trim().isEmpty) {
       _showSnackBar('Lütfen bir resim seçin veya açıklama yazın.');
@@ -125,7 +120,6 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
 
     setState(() {
       _isLoading = true;
-      _result = null;
       _errorMessage = null;
     });
 
@@ -135,27 +129,53 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
         Uri.parse('$_backendUrl/analiz'),
       );
 
-      // Metin açıklaması
       request.fields['aciklama'] = _questionController.text.trim();
       request.fields['ai_secim'] = 'gemini';
 
-      // Resim ekle (varsa)
       if (_selectedImage != null) {
+        final filename = _selectedImage!.name.toLowerCase();
+        String mime = 'image/jpeg';
+        if (filename.endsWith('.png')) mime = 'image/png';
+        if (filename.endsWith('.webp')) mime = 'image/webp';
+
+        final mimeParts = mime.split('/');
         request.files.add(
-          await http.MultipartFile.fromPath('gorsel', _selectedImage!.path),
+          http.MultipartFile.fromBytes(
+            'gorsel',
+            _selectedImageBytes!,
+            filename: _selectedImage!.name,
+            contentType: MediaType(mimeParts[0], mimeParts[1]),
+          ),
         );
       }
 
       final response = await request.send().timeout(
-        const Duration(seconds: 30),
+        const Duration(seconds: 60),
         onTimeout: () => throw Exception('Sunucu yanıt vermiyor (zaman aşımı)'),
       );
 
       final body = await response.stream.bytesToString();
 
       if (response.statusCode == 200) {
-        final json = jsonDecode(body) as Map<String, dynamic>;
-        setState(() => _result = _AnalizSonucu.fromJson(json));
+        final jsonData = jsonDecode(body) as Map<String, dynamic>;
+        final sonuc = _AnalizSonucu.fromJson(jsonData);
+
+        setState(() => _isLoading = false);
+
+        if (mounted) {
+          await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => AnalizSonucEkrani(
+                arizaTuru: sonuc.arizaTuru,
+                aciliyet: sonuc.aciliyet,
+                aciklama: sonuc.aciklama,
+                onerim: sonuc.onerim,
+                gorselBytes: _selectedImageBytes,
+              ),
+            ),
+          );
+        }
       } else {
         setState(() => _errorMessage = 'Sunucu hatası: ${response.statusCode}\n$body');
       }
@@ -169,19 +189,6 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
   void _showSnackBar(String msg) {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
-    }
-  }
-
-  Color _aciliyetColor(String aciliyet) {
-    switch (aciliyet.toLowerCase()) {
-      case 'kritik':
-        return Colors.red.shade700;
-      case 'yüksek':
-        return Colors.orange.shade700;
-      case 'orta':
-        return Colors.amber.shade700;
-      default:
-        return Colors.green.shade700;
     }
   }
 
@@ -200,7 +207,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // ── Açıklama Alanı ───────────────────────────────────
+            // Açıklama Alanı
             Card(
               elevation: 4,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -219,7 +226,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
             ),
             const SizedBox(height: 12),
 
-            // ── Resim Seçimi ─────────────────────────────────────
+            // Resim Seçimi
             Card(
               elevation: 4,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -228,13 +235,13 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
                 borderRadius: BorderRadius.circular(12),
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
-                  child: _selectedImage != null
+                  child: _selectedImageBytes != null
                       ? Column(
                           children: [
                             ClipRRect(
                               borderRadius: BorderRadius.circular(8),
-                              child: Image.file(
-                                _selectedImage!,
+                              child: Image.memory(
+                                _selectedImageBytes!,
                                 height: 200,
                                 width: double.infinity,
                                 fit: BoxFit.cover,
@@ -269,7 +276,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
             ),
             const SizedBox(height: 16),
 
-            // ── Analiz Butonu ─────────────────────────────────────
+            // Analiz Butonu
             ElevatedButton.icon(
               onPressed: _isLoading ? null : _analyzeWithAI,
               icon: _isLoading
@@ -289,7 +296,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
             ),
             const SizedBox(height: 20),
 
-            // ── Sonuç Alanı ───────────────────────────────────────
+            // Hata Alanı
             if (_errorMessage != null)
               Container(
                 padding: const EdgeInsets.all(16),
@@ -314,62 +321,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
                 ),
               ),
 
-            if (_result != null) ...[
-              const Text(
-                'Yapay Zeka Analizi:',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-              ),
-              const SizedBox(height: 8),
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade50,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.grey.shade300),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Arıza türü
-                    Row(
-                      children: [
-                        const Icon(Icons.warning_amber, color: AppColors.accent),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Arıza Türü: ${_result!.arizaTuru}',
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    // Aciliyet
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: _aciliyetColor(_result!.aciliyet),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        'Aciliyet: ${_result!.aciliyet}',
-                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    // Açıklama
-                    const Text('📋 Açıklama:', style: TextStyle(fontWeight: FontWeight.w600)),
-                    const SizedBox(height: 4),
-                    Text(_result!.aciklama),
-                    const SizedBox(height: 12),
-                    // Öneri
-                    const Text('✅ Önerilen İşlem:', style: TextStyle(fontWeight: FontWeight.w600)),
-                    const SizedBox(height: 4),
-                    Text(_result!.onerim),
-                  ],
-                ),
-              ),
-            ],
-
-            if (!_isLoading && _result == null && _errorMessage == null)
+            if (!_isLoading && _errorMessage == null && _selectedImageBytes == null)
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
