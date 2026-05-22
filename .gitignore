@@ -1,0 +1,18 @@
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+
+# IntelliJ / VS Code
+.idea/
+.vscode/
+*.iml
+
+# Flutter / Dart / Pycache
+**/mobil_final/.dart_tool/
+**/mobil_final/build/
+**/mobil_final/.pub-cache/
+**/mobil_final/.pub/
+**/backend/__pycache__/
