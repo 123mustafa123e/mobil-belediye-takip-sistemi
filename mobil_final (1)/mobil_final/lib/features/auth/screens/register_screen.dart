@@ -1,5 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+
 import '../../../core/constants/app_colors.dart';
+import '../../../core/constants/app_constants.dart';
+import '../../../core/constants/app_routes.dart';
+import '../bloc/auth_cubit.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -23,6 +28,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _passwordConfirmController = TextEditingController();
 
   bool _isPasswordVisible = false;
+  bool _isSubmitting = false;
 
   @override
   void dispose() {
@@ -37,21 +43,55 @@ class _RegisterScreenState extends State<RegisterScreen> {
     super.dispose();
   }
 
-  void _onStepContinue() {
+  Future<void> _onStepContinue() async {
     final isLastStep = _currentStep == 2;
     if (isLastStep) {
-      if (_formKey.currentState!.validate()) {
-        // Form geçerli, kayıt işlemi yapılabilir
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Kayıt Başarılı! Yönlendiriliyor...')),
-        );
-        Future.delayed(const Duration(seconds: 2), () {
-          if (mounted) Navigator.pop(context);
-        });
+      if (!_formKey.currentState!.validate()) {
+        return;
       }
-    } else {
-      setState(() => _currentStep += 1);
+
+      setState(() => _isSubmitting = true);
+
+      try {
+        await context.read<AuthCubit>().register(
+          ad: _adController.text.trim(),
+          soyad: _soyadController.text.trim(),
+          tcKimlik: _tcController.text.trim(),
+          email: _emailController.text.trim(),
+          telefon: _telefonController.text.trim(),
+          adres: _adresController.text.trim(),
+          password: _passwordController.text.trim(),
+          role: AppConstants.tipVatandas,
+        );
+
+        if (!mounted) {
+          return;
+        }
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Kayıt başarılı. Hesabınız oluşturuldu.'),
+          ),
+        );
+
+        Navigator.pushReplacementNamed(context, AppRoutes.userDashboard);
+      } catch (error) {
+        if (!mounted) {
+          return;
+        }
+
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.toString())));
+      } finally {
+        if (mounted) {
+          setState(() => _isSubmitting = false);
+        }
+      }
+      return;
     }
+
+    setState(() => _currentStep += 1);
   }
 
   void _onStepCancel() {
@@ -76,7 +116,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Kayıt Ol', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text(
+          'Kayıt Ol',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
         centerTitle: true,
       ),
       body: Form(
@@ -96,19 +139,33 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 child: Row(
                   children: <Widget>[
                     ElevatedButton(
-                      onPressed: details.onStepContinue,
+                      onPressed: _isSubmitting ? null : details.onStepContinue,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.primary,
                         foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 12,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
                       ),
-                      child: Text(_currentStep == 2 ? 'Kaydı Tamamla' : 'Devam Et'),
+                      child: Text(
+                        _isSubmitting
+                            ? 'Kaydediliyor...'
+                            : (_currentStep == 2
+                                  ? 'Kaydı Tamamla'
+                                  : 'Devam Et'),
+                      ),
                     ),
                     const SizedBox(width: 12),
                     TextButton(
-                      onPressed: details.onStepCancel,
-                      child: Text(_currentStep == 0 ? 'İptal' : 'Geri', style: const TextStyle(color: Colors.grey)),
+                      onPressed: _isSubmitting ? null : details.onStepCancel,
+                      child: Text(
+                        _currentStep == 0 ? 'İptal' : 'Geri',
+                        style: const TextStyle(color: Colors.grey),
+                      ),
                     ),
                   ],
                 ),
@@ -116,32 +173,49 @@ class _RegisterScreenState extends State<RegisterScreen> {
             },
             steps: [
               Step(
-                title: const Text('Kişisel Bilgiler', style: TextStyle(fontWeight: FontWeight.bold)),
+                title: const Text(
+                  'Kişisel Bilgiler',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
                 isActive: _currentStep >= 0,
-                state: _currentStep > 0 ? StepState.complete : StepState.indexed,
+                state: _currentStep > 0
+                    ? StepState.complete
+                    : StepState.indexed,
                 content: Column(
                   children: [
                     const SizedBox(height: 8),
                     TextFormField(
                       controller: _adController,
                       decoration: _buildInputDecoration('Ad', Icons.person),
-                      validator: (value) => value!.isEmpty ? 'Ad alanı boş bırakılamaz' : null,
+                      validator: (value) =>
+                          value!.isEmpty ? 'Ad alanı boş bırakılamaz' : null,
                     ),
                     const SizedBox(height: 16),
                     TextFormField(
                       controller: _soyadController,
-                      decoration: _buildInputDecoration('Soyad', Icons.person_outline),
-                      validator: (value) => value!.isEmpty ? 'Soyad alanı boş bırakılamaz' : null,
+                      decoration: _buildInputDecoration(
+                        'Soyad',
+                        Icons.person_outline,
+                      ),
+                      validator: (value) =>
+                          value!.isEmpty ? 'Soyad alanı boş bırakılamaz' : null,
                     ),
                     const SizedBox(height: 16),
                     TextFormField(
                       controller: _tcController,
-                      decoration: _buildInputDecoration('TC Kimlik No', Icons.badge),
+                      decoration: _buildInputDecoration(
+                        'TC Kimlik No',
+                        Icons.badge,
+                      ),
                       keyboardType: TextInputType.number,
                       maxLength: 11,
                       validator: (value) {
-                        if (value == null || value.isEmpty) return 'TC Kimlik No boş bırakılamaz';
-                        if (value.length != 11) return 'TC Kimlik No 11 haneli olmalıdır';
+                        if (value == null || value.isEmpty) {
+                          return 'TC Kimlik No boş bırakılamaz';
+                        }
+                        if (value.length != 11) {
+                          return 'TC Kimlik No 11 haneli olmalıdır';
+                        }
                         return null;
                       },
                     ),
@@ -149,9 +223,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 ),
               ),
               Step(
-                title: const Text('İletişim Bilgileri', style: TextStyle(fontWeight: FontWeight.bold)),
+                title: const Text(
+                  'İletişim Bilgileri',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
                 isActive: _currentStep >= 1,
-                state: _currentStep > 1 ? StepState.complete : StepState.indexed,
+                state: _currentStep > 1
+                    ? StepState.complete
+                    : StepState.indexed,
                 content: Column(
                   children: [
                     const SizedBox(height: 8),
@@ -160,8 +239,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       decoration: _buildInputDecoration('E-posta', Icons.email),
                       keyboardType: TextInputType.emailAddress,
                       validator: (value) {
-                        if (value == null || value.isEmpty) return 'E-posta boş bırakılamaz';
-                        if (!value.contains('@')) return 'Geçerli bir e-posta giriniz';
+                        if (value == null || value.isEmpty) {
+                          return 'E-posta boş bırakılamaz';
+                        }
+                        if (!value.contains('@')) {
+                          return 'Geçerli bir e-posta giriniz';
+                        }
                         return null;
                       },
                     ),
@@ -170,20 +253,36 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       controller: _telefonController,
                       decoration: _buildInputDecoration('Telefon', Icons.phone),
                       keyboardType: TextInputType.phone,
-                      validator: (value) => value!.isEmpty ? 'Telefon alanı boş bırakılamaz' : null,
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Telefon alanı boş bırakılamaz';
+                        }
+                        return null;
+                      },
                     ),
                     const SizedBox(height: 16),
                     TextFormField(
                       controller: _adresController,
-                      decoration: _buildInputDecoration('Adres', Icons.location_on),
+                      decoration: _buildInputDecoration(
+                        'Adres',
+                        Icons.location_on,
+                      ),
                       maxLines: 3,
-                      validator: (value) => value!.isEmpty ? 'Adres alanı boş bırakılamaz' : null,
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Adres alanı boş bırakılamaz';
+                        }
+                        return null;
+                      },
                     ),
                   ],
                 ),
               ),
               Step(
-                title: const Text('Güvenlik', style: TextStyle(fontWeight: FontWeight.bold)),
+                title: const Text(
+                  'Güvenlik',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
                 isActive: _currentStep >= 2,
                 content: Column(
                   children: [
@@ -192,19 +291,34 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       controller: _passwordController,
                       decoration: InputDecoration(
                         labelText: 'Şifre',
-                        prefixIcon: const Icon(Icons.lock, color: AppColors.primary),
-                        suffixIcon: IconButton(
-                          icon: Icon(_isPasswordVisible ? Icons.visibility : Icons.visibility_off),
-                          onPressed: () => setState(() => _isPasswordVisible = !_isPasswordVisible),
+                        prefixIcon: const Icon(
+                          Icons.lock,
+                          color: AppColors.primary,
                         ),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            _isPasswordVisible
+                                ? Icons.visibility
+                                : Icons.visibility_off,
+                          ),
+                          onPressed: () => setState(
+                            () => _isPasswordVisible = !_isPasswordVisible,
+                          ),
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                         filled: true,
                         fillColor: Colors.white,
                       ),
                       obscureText: !_isPasswordVisible,
                       validator: (value) {
-                        if (value == null || value.isEmpty) return 'Şifre boş bırakılamaz';
-                        if (value.length < 6) return 'Şifre en az 6 karakter olmalıdır';
+                        if (value == null || value.isEmpty) {
+                          return 'Şifre boş bırakılamaz';
+                        }
+                        if (value.length < 6) {
+                          return 'Şifre en az 6 karakter olmalıdır';
+                        }
                         return null;
                       },
                     ),
@@ -213,15 +327,24 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       controller: _passwordConfirmController,
                       decoration: InputDecoration(
                         labelText: 'Şifre Tekrar',
-                        prefixIcon: const Icon(Icons.lock_outline, color: AppColors.primary),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        prefixIcon: const Icon(
+                          Icons.lock_outline,
+                          color: AppColors.primary,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                         filled: true,
                         fillColor: Colors.white,
                       ),
                       obscureText: !_isPasswordVisible,
                       validator: (value) {
-                        if (value == null || value.isEmpty) return 'Şifre tekrarı boş bırakılamaz';
-                        if (value != _passwordController.text) return 'Şifreler eşleşmiyor';
+                        if (value == null || value.isEmpty) {
+                          return 'Şifre tekrarı boş bırakılamaz';
+                        }
+                        if (value != _passwordController.text) {
+                          return 'Şifreler eşleşmiyor';
+                        }
                         return null;
                       },
                     ),

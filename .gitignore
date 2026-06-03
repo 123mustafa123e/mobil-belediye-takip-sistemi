@@ -12,7 +12,17 @@
 
 # Flutter / Dart / Pycache
 **/mobil_final/.dart_tool/
-**/mobil_final/build/
+**/build/
+build/
 **/mobil_final/.pub-cache/
 **/mobil_final/.pub/
 **/backend/__pycache__/
+
+# Secrets and environment configurations
+.env
+.env.local
+**/backend/.env
+**/backend/db.json
+**/db.json
+db.json
+

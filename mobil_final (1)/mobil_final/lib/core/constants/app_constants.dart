@@ -2,8 +2,8 @@ class AppConstants {
   // Uygulama Adı
   static const String appName = 'Belediye Arıza Takip Sistemi';
 
-  // API (Gelecekte entegre edilecek)
-  static const String baseUrl = 'https://api.belediye-ariza.com';
+  // API
+  static const String baseUrl = 'http://10.0.2.2:8000';
 
   // Arıza Durumları
   static const String durumBekliyor = 'bekliyor';

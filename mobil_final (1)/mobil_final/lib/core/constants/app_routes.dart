@@ -13,6 +13,7 @@ import '../../features/kurum/screens/kurum_sikayet_detay_screen.dart';
 import '../../features/profil/screens/profil_screen.dart';
 import '../../features/map/screens/map_screen.dart';
 import '../../features/ai_assistant/screens/ai_assistant_screen.dart';
+import '../../features/abonelik/screens/abonelik_detay_screen.dart';
 
 class AppRoutes {
   static const String splash = '/';
@@ -29,6 +30,7 @@ class AppRoutes {
   static const String profil = '/profil';
   static const String mapScreen = '/map';
   static const String aiAssistant = '/ai_assistant';
+  static const String abonelikDetay = '/abonelik/detay';
 
   static Route<dynamic> generateRoute(RouteSettings settings) {
     switch (settings.name) {
@@ -64,6 +66,10 @@ class AppRoutes {
         return _slideRoute(const MapScreen());
       case aiAssistant:
         return _slideRoute(const AiAssistantScreen());
+      case abonelikDetay:
+        final args = settings.arguments as Map<String, dynamic>?;
+        final type = args?['type'] as String? ?? 'su';
+        return _slideRoute(AbonelikDetayScreen(type: type));
       default:
         return MaterialPageRoute(
           builder: (_) => Scaffold(

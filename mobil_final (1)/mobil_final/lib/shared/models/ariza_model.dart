@@ -45,6 +45,8 @@ class ArizaModel {
   final String? kurumId;
   final List<ArizaGuncellemesi> guncellemeler;
   final int puanlama; // 1-5
+  final String? vatandasAdSoyad;
+  final String? vatandasTelefon;
 
   ArizaModel({
     required this.id,
@@ -61,6 +63,8 @@ class ArizaModel {
     this.kurumId,
     required this.guncellemeler,
     required this.puanlama,
+    this.vatandasAdSoyad,
+    this.vatandasTelefon,
   });
 
   factory ArizaModel.fromJson(Map<String, dynamic> json) {
@@ -82,6 +86,8 @@ class ArizaModel {
               .toList() ??
           [],
       puanlama: json['puanlama'] ?? 0,
+      vatandasAdSoyad: json['vatandasAdSoyad'],
+      vatandasTelefon: json['vatandasTelefon'],
     );
   }
 
@@ -101,6 +107,8 @@ class ArizaModel {
       'kurumId': kurumId,
       'guncellemeler': guncellemeler.map((e) => e.toJson()).toList(),
       'puanlama': puanlama,
+      'vatandasAdSoyad': vatandasAdSoyad,
+      'vatandasTelefon': vatandasTelefon,
     };
   }
 }
